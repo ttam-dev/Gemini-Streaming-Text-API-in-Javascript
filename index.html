@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Gemini Streaming Text</title>
+<style>
+  #output {
+    white-space: pre-wrap; /* To preserve newlines and spaces */
+    font-family: monospace;
+    padding: 10px;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+  <h1>Gemini Streaming Text</h1>
+  <div id="output">
+    <!-- Streaming text will be displayed here -->
+  </div>
+
+  <script>
+    const API_KEY = "AIzaSyBC4B9KfsJcrkozJTF2WWt2gjLfjgRN440"; // DO NOT ABUSE MY API KEY!
+    const inputText = "What's AI?"; // Or your desired input text
+
+  // Use Gemini 1.5 Flash 8B
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:streamGenerateContent?alt=sse&key=${API_KEY}`;
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: inputText
+            }
+          ]
+        }
+      ]
+    };
+
+    async function streamGenerateContent() {
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let partialLine = "";
+        const outputDiv = document.getElementById('output'); // Get the output div
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            console.log("Stream finished.");
+            break;
+          }
+
+          const chunk = decoder.decode(value);
+          const lines = (partialLine + chunk).split('\n');
+          partialLine = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.trim() === "") continue;
+
+            let jsonLine = line;
+
+            if (line.startsWith("data: ")) {
+              jsonLine = line.substring(5);
+            }
+
+            try {
+              const sseData = JSON.parse(jsonLine);
+              const text = sseData.candidates?.[0]?.content?.parts?.[0]?.text || ""; // Safely access text, default to empty string
+
+			  console.log(sseData);
+              if (text) {
+                outputDiv.textContent += text; // Append text to the output div
+              }
+
+            } catch (e) {
+              console.error("Error parsing SSE line:", line, e);
+              outputDiv.textContent += " [JSON_PARSE_ERROR] "; // Indicate JSON parsing error in output
+            }
+          }
+        }
+
+        if (partialLine.trim() !== "") {
+          console.warn("Warning: Last partial line was not processed:", partialLine);
+        }
+
+        reader.releaseLock();
+      } catch (error) {
+        console.error("Fetch error:", error);
+        outputDiv.textContent += ` [FETCH_ERROR: ${error.message}] `; // Indicate fetch error in output
+      }
+    }
+
+    streamGenerateContent();
+  </script>
+</body>
+</html>
