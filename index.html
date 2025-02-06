@@ -83,101 +83,123 @@ Creadit is appreciated, but not required.
   </div>
 
   <script>
-    const API_KEY = "AIzaSyBC4B9KfsJcrkozJTF2WWt2gjLfjgRN440"; // MY API KEY
-    const inputText = "What are some interesting facts about the universe?";
+    const API_KEY = "AIzaSyBC4B9KfsJcrkozJTF2WWt2gjLfjgRN440"; // MY API KEY - FOR DEMO PURPOSES ONLY! DO NOT ABUSE!
+    const inputText = "What's Sololearn?";
 
-    // Use Gemini 1.5 Flash 8B to generate text
+    // API endpoint for Gemini 1.5 Flash 8B streaming text generation.
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:streamGenerateContent?alt=sse&key=${API_KEY}`;
 
+    // Request body for the Gemini API. Configures the content and generation parameters.
     const requestBody = {
+      // System Instruction (Optional - Uncomment to use system instructions to guide the model behavior)
+      //system_instruction: {
+       // parts: [
+        //  { text: "You are a cat. Your name is Neko." }
+        //]
+      //},
       contents: [
         {
+          role: "user", // Indicates this is a user prompt
           parts: [
             {
-              text: inputText
+              text: inputText // The actual text prompt sent to the model
             }
           ]
         }
-      ]
+      ],
+
+      generationConfig: { // Configuration parameters for text generation.
+        "temperature": 2,       // Controls randomness (higher = more random)
+        "topK": 40,            // Limits vocabulary to top K most likely tokens
+        "topP": 0.95,          // Nucleus sampling, considers tokens within top P probability mass
+        "maxOutputTokens": 8192, // Maximum number of tokens in the response
+        "responseMimeType": "text/plain"
+      }
+
     };
 
+    // Async function to handle streaming text generation from Gemini API.
     async function streamGenerateContent() {
-      const outputDiv = document.getElementById('output');
+      const outputDiv = document.getElementById('output'); // Get the div element where the output will be displayed
 
       try {
-        outputDiv.textContent = "Loading response, please wait...";
-        outputDiv.classList.remove('error');
+        outputDiv.textContent = "Loading response, please wait..."; // Display loading message to the user
+        outputDiv.classList.remove('error'); // Remove any previous error class from the output div
 
-        const response = await fetch(apiUrl, { // Get response from model
+        // Fetch request to the Gemini API endpoint for streaming.
+        const response = await fetch(apiUrl, { // Send a POST request to the API endpoint
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json' // Indicate that the request body is JSON
           },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify(requestBody) // Serialize the request body object to JSON format
         });
 
+        // Check if the API response was successful (HTTP status code 2xx).
         if (!response.ok) {
-          outputDiv.classList.add('error');
-          throw new Error(`HTTP error! status: ${response.status}`);
+          outputDiv.classList.add('error'); // Add error class to style output div as error
+          throw new Error(`HTTP error! status: ${response.status}`); // Throw an error if the response is not ok
         }
 
-        outputDiv.textContent = "";
+        outputDiv.textContent = ""; // Clear the loading message once the connection is established and streaming starts
 
+        // Get the reader from the response body to process the streaming data.
         const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let partialLine = "";
+        const decoder = new TextDecoder(); // TextDecoder to decode the byte stream into strings
+        let partialLine = ""; // Variable to store any partial line from the previous chunk
 
-
+        // Main loop to read and process streaming data chunks.
         while (true) {
-          const { done, value } = await reader.read();
+          const { done, value } = await reader.read(); // Read a chunk of data from the stream
 
           if (done) {
-            console.log("Stream finished.");
-            break;
+            console.log("Stream finished."); // Log when the stream is complete
+            break; // Exit the loop when the stream is finished
           }
 
-          const chunk = decoder.decode(value);
-          const lines = (partialLine + chunk).split('\n');
-          partialLine = lines.pop() || "";
+          const chunk = decoder.decode(value); // Decode the received byte chunk into a string
+          const lines = (partialLine + chunk).split('\n'); // Split the chunk into lines, considering any partial line from previous chunk
+          partialLine = lines.pop() || ""; // Store the last (potentially incomplete) line for the next iteration
 
+          // Process each line from the chunk (each line represents a Server-Sent Event).
           for (const line of lines) {
-            if (line.trim() === "") continue;
+            if (line.trim() === "") continue; // Skip empty lines
 
-            let jsonLine = line;
+            let jsonLine = line; // Initialize jsonLine with the current line
 
-            if (line.startsWith("data: ")) {
-              jsonLine = line.substring(5);
+            if (line.startsWith("data: ")) { // Check if the line starts with "data: " (SSE data prefix)
+              jsonLine = line.substring(5); // Remove "data: " prefix to get the actual JSON data
             }
 
             try {
-              const sseData = JSON.parse(jsonLine);
-              const text = sseData.candidates?.[0]?.content?.parts?.[0]?.text || ""; // Get actual text
+              const sseData = JSON.parse(jsonLine); // Parse the JSON line to extract SSE data.
+              const text = sseData.candidates?.[0]?.content?.parts?.[0]?.text || ""; // Safely extract the text content from the parsed JSON.
 
-			        console.log(sseData);
+			        //console.log(sseData); // Log the full SSE data for debugging and inspection
               if (text) {
-                outputDiv.textContent += text;
+                outputDiv.textContent += text; // Append the extracted text to the output div, displaying the streamed content.
               }
 
             } catch (e) {
-              console.error("Error parsing SSE line:", line, e);
-              outputDiv.textContent += " [JSON_PARSE_ERROR] ";
+              console.error("Error parsing SSE line:", line, e); // Log any errors during JSON parsing
+              outputDiv.textContent += " [JSON_PARSE_ERROR] "; // Indicate a JSON parsing error in the output
             }
           }
         }
 
         if (partialLine.trim() !== "") {
-          console.warn("Warning: Last partial line was not processed:", partialLine);
+          console.warn("Warning: Last partial line was not processed:", partialLine); // Warn if there's unprocessed data at the end
         }
 
-        reader.releaseLock();
+        reader.releaseLock(); // Release the reader lock to allow the stream to be garbage collected.
       } catch (error) {
-        console.error("Fetch error:", error);
-        outputDiv.classList.add('error');
-        outputDiv.textContent = `[FETCH_ERROR: ${error.message}] `;
+        console.error("Fetch error:", error); // Log any errors that occur during the fetch process
+        outputDiv.classList.add('error'); // Add error class to style output div as error
+        outputDiv.textContent = `[FETCH_ERROR: ${error.message}] `; // Display fetch error message in the output div
       }
     }
 
-    streamGenerateContent();
+    streamGenerateContent(); // Call the main function to start streaming text generation when the script loads.
   </script>
 </body>
 </html>
