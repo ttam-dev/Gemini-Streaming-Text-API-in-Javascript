@@ -1,28 +1,92 @@
+<!--
+This system was created by Amir using the Google Gemini API.
+Feel free to use and modify this code.
+Creadit is appreciated, but not required.
+-->
+
 <!DOCTYPE html>
 <html>
 <head>
 <title>Gemini Streaming Text</title>
 <style>
+  body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f7f9;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .container {
+    width: 80%;
+    max-width: 960px;
+    padding: 2rem;
+    box-sizing: border-box;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #4285f4;
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+
   #output {
-    white-space: pre-wrap; /* To preserve newlines and spaces */
-    font-family: monospace;
-    padding: 10px;
-    border: 1px solid #ccc;
-    margin-top: 10px;
+    white-space: pre-wrap;
+    font-family: 'Roboto Mono', monospace;
+    padding: 1.5rem;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    margin-top: 1.5rem;
+    line-height: 1.6;
+    font-size: 1rem;
+    overflow-x: auto;
+    border: 1px solid #e0e0e0;
+  }
+
+  #output.error {
+    background-color: #ffebee;
+    border-color: #ef9a9a;
+    color: #d32f2f;
+  }
+
+  @media (max-width: 768px) {
+    .container {
+      width: 95%;
+      padding: 1rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+    }
+
+    #output {
+      padding: 1rem;
+      font-size: 0.9rem;
+    }
   }
 </style>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <h1>Gemini Streaming Text</h1>
-  <div id="output">
-    <!-- Streaming text will be displayed here -->
+  <div class="container">
+    <h1>Gemini Streaming Text</h1>
+    <div id="output">
+      <!-- Streaming text will be displayed here -->
+    </div>
   </div>
 
   <script>
-    const API_KEY = "AIzaSyBC4B9KfsJcrkozJTF2WWt2gjLfjgRN440"; // DO NOT ABUSE MY API KEY!
-    const inputText = "What's AI?"; // Or your desired input text
+    const API_KEY = "AIzaSyBC4B9KfsJcrkozJTF2WWt2gjLfjgRN440"; // MY API KEY
+    const inputText = "What are some interesting facts about the universe?";
 
-  // Use Gemini 1.5 Flash 8B
+    // Use Gemini 1.5 Flash 8B to generate text
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:streamGenerateContent?alt=sse&key=${API_KEY}`;
 
     const requestBody = {
@@ -38,8 +102,13 @@
     };
 
     async function streamGenerateContent() {
+      const outputDiv = document.getElementById('output');
+
       try {
-        const response = await fetch(apiUrl, {
+        outputDiv.textContent = "Loading response, please wait...";
+        outputDiv.classList.remove('error');
+
+        const response = await fetch(apiUrl, { // Get response from model
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -48,13 +117,16 @@
         });
 
         if (!response.ok) {
+          outputDiv.classList.add('error');
           throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        outputDiv.textContent = "";
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let partialLine = "";
-        const outputDiv = document.getElementById('output'); // Get the output div
+
 
         while (true) {
           const { done, value } = await reader.read();
@@ -79,16 +151,16 @@
 
             try {
               const sseData = JSON.parse(jsonLine);
-              const text = sseData.candidates?.[0]?.content?.parts?.[0]?.text || ""; // Safely access text, default to empty string
+              const text = sseData.candidates?.[0]?.content?.parts?.[0]?.text || ""; // Get actual text
 
-			  console.log(sseData);
+			        console.log(sseData);
               if (text) {
-                outputDiv.textContent += text; // Append text to the output div
+                outputDiv.textContent += text;
               }
 
             } catch (e) {
               console.error("Error parsing SSE line:", line, e);
-              outputDiv.textContent += " [JSON_PARSE_ERROR] "; // Indicate JSON parsing error in output
+              outputDiv.textContent += " [JSON_PARSE_ERROR] ";
             }
           }
         }
@@ -100,7 +172,8 @@
         reader.releaseLock();
       } catch (error) {
         console.error("Fetch error:", error);
-        outputDiv.textContent += ` [FETCH_ERROR: ${error.message}] `; // Indicate fetch error in output
+        outputDiv.classList.add('error');
+        outputDiv.textContent = `[FETCH_ERROR: ${error.message}] `;
       }
     }
 
